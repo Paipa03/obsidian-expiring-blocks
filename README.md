@@ -49,7 +49,7 @@ Expiring Blocks ships its own toggle engine, so it works on its own. Install [Ed
 
 - Expired contents are **deleted from the note**. Anything you want to keep belongs outside an expiring block, or should simply be edited once in a while.
 - To find blocks that are due, the plugin looks through your Markdown notes when Obsidian starts and every two hours while it is open. It only changes notes that contain an expired block. Nothing leaves your device.
-- Some settings labels are currently in Chinese.
+- Interface in English and Chinese: follows Obsidian's language by default, or pick one under the plugin's **Language** setting.
 
 ## Install
 

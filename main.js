@@ -1,5 +1,5 @@
 /*
- * Expiring Blocks 1.0.10 - by paipa, MIT License
+ * Expiring Blocks 1.1.0 - by paipa, MIT License
  * https://github.com/Paipa03/obsidian-expiring-blocks
  *
  * Maintainer notes:
@@ -11,6 +11,117 @@
  * - Any change to the shared engine goes into both plugins in the same release,
  *   tested with both installed and with each one installed alone.
  */
+
+// ---- i18n ----
+// UI text. English is the base language; PAIPA_I18N_ZH maps each English
+// string to Simplified Chinese. paipaLang mirrors Expiring Blocks' settings.language
+// ("auto" | "en" | "zh"); "auto" follows Obsidian's own language.
+let paipaLang = "auto";
+function paipaSetLang(value) {
+  paipaLang = value === "en" || value === "zh" ? value : "auto";
+}
+function paipaObsidianLang() {
+  try {
+    const o = require("obsidian");
+    const l = (typeof o.getLanguage === "function" && o.getLanguage()) || window.localStorage.getItem("language") || "en";
+    return /^zh/i.test(String(l)) ? "zh" : "en";
+  } catch (e) { return "en"; }
+}
+function paipaEffectiveLang() {
+  return paipaLang === "en" || paipaLang === "zh" ? paipaLang : paipaObsidianLang();
+}
+function paipaT(en, vars) {
+  let s = en;
+  if (paipaEffectiveLang() === "zh" && Object.prototype.hasOwnProperty.call(PAIPA_I18N_ZH, en)) s = PAIPA_I18N_ZH[en];
+  if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m);
+  return s;
+}
+const PAIPA_I18N_ZH = {
+  "Web bookmark": "网页书签",
+  "Scratch": "临时记录",
+  "Editor Enhancer": "Editor Enhancer（优化编辑器）",
+  "Language": "语言",
+  "Follow Obsidian's language, or choose one for this plugin.": "跟随 Obsidian 的语言，或为本插件单独选择。",
+  "Follow Obsidian": "跟随 Obsidian",
+  "Feature modules (all on by default, each can be turned off separately)": "功能模块（全部默认开启，可独立开关）",
+  "Notion blocks": "Notion 块功能",
+  "Six-dot drag handles, block menu, plus button to insert lines, multi-select drag and block spacing. When off, native block interaction returns; other modules are unaffected.": "六点拖拽手柄、块菜单、加号插行、多选整体拖拽与块间距排版。关闭后恢复原生块交互，其他模块不受影响。",
+  "Toggle lists": "Toggle List 功能",
+  "Notion-style collapsible lists and related changes to native behavior (heading folds taken over, protected lines, etc.). When off, toggle markers show as plain text; turning it back on restores them.": "Notion 式可折叠列表及相关原生行为修改（heading 折叠接管、保护行等）。关闭后 TL 标记显示为原始文本，重新开启即恢复。",
+  "List markers as a unit": "列表标记整体化",
+  "In Live Preview, the bullet / number / checkbox in front of a list line acts as one unit: the cursor never stops inside it, one Backspace removes the whole marker (a nested item first moves up one level), Delete at the end of a line joins the next item, and ← from the start of the text goes straight to the end of the previous line. When off, Obsidian's native character-by-character deletion returns.": "实时预览里，列表行前的圆点 / 数字 / 复选框是一个整体：光标不会停在标记里，Backspace 一次删掉整个标记（嵌套项先退一级），行尾 Delete 一次并入下一项，← 从文字开头直接到上一行末尾。关闭后恢复 Obsidian 原生的逐字符删除。",
+  "Context menu enhancements": "右键菜单增强",
+  "Tidies the right-click menu (this plugin's items are grouped in their own section and replace the native delete item) and enables \"Don't select line on right-click\". When off, the right-click menu fully returns to Obsidian's native behavior.": "整理右键菜单（本插件的菜单项集中为独立分组、替换原生删除项）以及「右键不选中整行」。关闭后右键菜单完全恢复 Obsidian 原生行为。",
+  "Table link navigation (mobile)": "表格链接跳转（手机端）",
+  "On mobile, tapping an internal link in a table opens it directly (as on desktop); tapping anywhere else still starts editing, and links that can't be resolved fall back to editing.": "手机上点按表格中的内部链接直接跳转（与电脑端一致）；点按链接以外的位置仍进入编辑，无法解析的链接回落为编辑。",
+  "Restore scroll position when returning to a page": "返回页面时恢复滚动位置",
+  "When you reopen a page viewed earlier in this session (for example, going back after following a link), the scroll position you left it at is restored; long pages no longer land at the bottom.": "重新打开本次会话看过的页面（如点击链接后返回）时，恢复离开时的滚动位置；长页面不再落到底端。",
+  "Details": "细项",
+  "Don't select line on right-click": "右键不选中整行",
+  "Right-click only opens the menu without selecting the whole line first; an existing selection is kept. Requires \"Context menu enhancements\".": "右键只打开菜单，不先选中整行；已有选区会被保留。需开启「右键菜单增强」。",
+  "Enable block spacing": "启用段落间距",
+  "Add Notion-style extra spacing between content blocks. Requires \"Notion blocks\".": "在内容块之间添加 Notion 风格的额外间距。需开启「Notion 块功能」。",
+  "Drag handle": "拖拽图标",
+  "Handle opacity": "图标透明度",
+  "Opacity before hover (0.1 – 1.0).": "悬停前的透明度（0.1 – 1.0）。",
+  "Handle distance from content": "图标距内容距离",
+  "Gap between the handle and the left edge of the content (0 – 40 px).": "图标与内容左缘的间距（0 – 40 px）。",
+  "Handle padding": "图标内边距",
+  "Distance from the dot grid to the handle's border (1 – 16 px).": "圆点阵列到图标边框的距离（1 – 16 px）。",
+  "Dot diameter": "圆点直径",
+  "1.5 – 8 px.": "1.5 – 8 px。",
+  "Dot spacing": "圆点间距",
+  "1 – 6 px.": "1 – 6 px。",
+  "Dot gray level": "圆点灰度",
+  "0 = white, 100 = black.": "0 = 白，100 = 黑。",
+  "Toggle triangle size": "Toggle 三角图标大小",
+  "10 – 28 px.": "10 – 28 px。",
+  "Drop indicator line": "拖拽插入位置横线",
+  "Line thickness": "横线粗细",
+  "1 – 8 px.": "1 – 8 px。",
+  "Line opacity": "横线不透明度",
+  "0.1 – 1.0.": "0.1 – 1.0。",
+  "Notion-style spacing": "Notion 风格行间距",
+  "Block spacing": "Block 间距",
+  "Spacing between adjacent content blocks (2 – 32 px).": "相邻内容块之间的间距（2 – 32 px）。",
+  "Line spacing within a block": "Block 内行间距",
+  "Extra spacing between lines of text within one block (0 = theme default, up to 20 px).": "同一 block 内多行文字的额外行距（0 = 主题默认，最大 20 px）。",
+  "Insert blank line below": "在下方插入空行",
+  "Toggle list": "折叠列表",
+  "(empty)": "（空）",
+  "Collapse toggle list": "收起折叠列表",
+  "Expand toggle list": "展开折叠列表",
+  "Toggle List is disabled in settings": "Toggle List 功能已在设置中关闭",
+  "Delete": "删除",
+  "This row is already a toggle list": "该行已经是折叠列表",
+  "Duplicate": "创建副本",
+  "Paste": "粘贴",
+  "Cut": "剪切",
+  "Insert line above": "在上方插入行",
+  "Insert line below": "在下方插入行",
+  "Duplicated below": "已在下方创建副本",
+  "Expiring block": "时效块",
+  "Create expiring block": "创建时效块",
+  "{n} day": "{n} 天",
+  "{n} days": "{n} 天",
+  "Expires on {date}; contents have expired": "到期日期：{date}；正文已到期",
+  "Expires on {date}; contents are cleared when it expires": "到期日期：{date}；到期自动清空正文",
+  "{badge}, {title}": "{badge}，{title}",
+  "Restart the timer from today": "从今天重新计时",
+  "Reset timer": "重置时效",
+  "Clear contents": "清空内容",
+  "Toggle engine failed to load": "折叠引擎未能载入",
+  "Cannot clear an incomplete block.": "无法清空不完整的时效块。",
+  "Write down what you need to keep for now…": "写下暂时需要保留的内容…",
+  "Expiring block update failed: {error}": "时效块未能完成更新：{error}",
+  "Expiring Blocks": "Expiring Blocks（时效块）",
+  "Lifetime (days)": "有效期（天）",
+  "1–3650 days. Applied when editing content or resetting.": "1–3650 天。编辑内容或重置时生效。",
+  "Enter a whole number from 1 to 3650.": "请输入 1 到 3650 之间的整数。",
+  "Right-click a blank line to create a block. Reset restarts the timer; Clear removes its contents.": "在空行上右键即可创建时效块。重置会重新计时，清空会删除其中的内容。",
+  "2 days: yellow. 1 day: red. Expired contents are cleared; titles remain. Checked on opening, focus, midnight and every 2 hours.": "剩 2 天显示黄色，剩 1 天显示红色。到期后正文被清空，标题保留。在打开笔记、窗口获得焦点、午夜以及每 2 小时时检查。"
+};
+// ---- end i18n ----
 
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
@@ -319,7 +430,8 @@ var require_toggle_engine = __commonJS({
       contextMenuFeaturesEnabled: true,
       restoreScrollOnReopen: true,
       mobileTableLinkNav: true,
-      listMarkerFeaturesEnabled: true
+      listMarkerFeaturesEnabled: true,
+      language: "auto"
     };
     var HANDLE_W = 28;
     var NSB_TL_FEATURES_ENABLED = true;
@@ -889,7 +1001,7 @@ var require_toggle_engine = __commonJS({
       const b = document.createElement("button");
       b.type = "button";
       b.className = "clickable-icon nsb-add-line-button";
-      b.setAttribute("aria-label", "Insert blank line below");
+      b.setAttribute("aria-label", paipaT("Insert blank line below"));
       try {
         import_obsidian.setIcon(b, "plus");
       } catch (_) {
@@ -965,7 +1077,7 @@ var require_toggle_engine = __commonJS({
         const opener = doc.line(startLine + 1).text.trim();
         const toggle = getToggleByStartLine(doc, startLine);
         if (toggle && toggle.titleLine < doc.lines) {
-          labelText = toggleVisibleTitleText(doc, toggle).trim().substring(0, 60) || "Toggle list";
+          labelText = toggleVisibleTitleText(doc, toggle).trim().substring(0, 60) || paipaT("Toggle list");
         } else if (/^```web-bookmark/i.test(opener) && startLine + 2 <= doc.lines) {
           const parsed = JSON.parse(doc.line(startLine + 2).text.trim());
           labelText = (parsed.title || parsed.url || "").substring(0, 60);
@@ -974,7 +1086,7 @@ var require_toggle_engine = __commonJS({
         }
       } catch (_) {
       }
-      if (!labelText) labelText = (fallbackEl.textContent || "").trim().substring(0, 60) || "(empty)";
+      if (!labelText) labelText = (fallbackEl.textContent || "").trim().substring(0, 60) || paipaT("(empty)");
       return labelText;
     }
     function resolveBlockBoundary(doc, lineNum0) {
@@ -1743,7 +1855,7 @@ var require_toggle_engine = __commonJS({
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "nsb-toggle-triangle nsb-toggle-overlay-triangle" + (t.open ? " is-open" : " is-closed") + (empty ? " is-empty" : "") + (this.plugin.activeToggleId === t.id ? " is-active" : "");
-          btn.setAttribute("aria-label", t.open ? "Collapse toggle list" : "Expand toggle list");
+          btn.setAttribute("aria-label", t.open ? paipaT("Collapse toggle list") : paipaT("Expand toggle list"));
           btn.style.top = firstRowTop - scrollerRect.top + this.scroller.scrollTop + Math.max(0, (firstRowBottom - firstRowTop - size) / 2) + "px";
           btn.style.left = r.left - scrollerRect.left + this.scroller.scrollLeft + 4 + t.depth * 22 + "px";
           btn.addEventListener("mousedown", (e) => {
@@ -2242,8 +2354,25 @@ var require_toggle_engine = __commonJS({
           if (!menu || !Array.isArray(menu.items)) return;
           const order = ["Web bookmark", "Gallery", "Expiring block", "Delete", "Toggle list"];
           const titleOf = (item) => String(item && (item.titleEl ? item.titleEl.textContent : item.title) || "").trim();
+          const orderIcons = ["link", "images", "hourglass", "trash", "list-plus"];
+          const iconOf = (item) => {
+            try {
+              if (item && typeof item.icon === "string") return item.icon;
+              const svg = item && item.iconEl && item.iconEl.querySelector && item.iconEl.querySelector("svg");
+              const m = svg && /(?:^|\s)lucide-([\w-]+)/.exec(svg.getAttribute("class") || "");
+              return m ? m[1] : "";
+            } catch (_) {
+              return "";
+            }
+          };
+          // Titles may be translated: match the English title or its Chinese text, then the icon.
           const rank = (item) => {
-            const k = order.indexOf(titleOf(item));
+            const title = titleOf(item);
+            let k = order.findIndex((en) => en === title || PAIPA_I18N_ZH[en] === title);
+            if (k < 0) {
+              const icon = iconOf(item);
+              k = icon ? orderIcons.indexOf(icon) : -1;
+            }
             return k < 0 ? order.length : k;
           };
           const inSection = (item) => !!item && item.section === "editor-enhancer";
@@ -2278,10 +2407,10 @@ var require_toggle_engine = __commonJS({
         this.registerEvent(this.app.workspace.on("file-open", (file) => this.restoreScrollPositionOnOpen(file)));
         this.addCommand({
           id: "insert-toggle-list",
-          name: "Toggle list",
+          name: paipaT("Toggle list"),
           editorCallback: (editor) => {
             if (this.settings.tlFeaturesEnabled === false) {
-              new import_obsidian.Notice("Toggle List is disabled in settings");
+              new import_obsidian.Notice(paipaT("Toggle List is disabled in settings"));
               return;
             }
             this.makeToggleListFromEditorMenu(editor);
@@ -2297,9 +2426,9 @@ var require_toggle_engine = __commonJS({
             }
             return i;
           };
-          menu.addItem((i) => asOwnSection(i).setTitle("Delete").setIcon("trash").setDisabled(!this.canDeleteFromEditorMenu(editor)).onClick(() => this.deleteEditorSelectionFromMenu(editor)));
+          menu.addItem((i) => asOwnSection(i).setTitle(paipaT("Delete")).setIcon("trash").setDisabled(!this.canDeleteFromEditorMenu(editor)).onClick(() => this.deleteEditorSelectionFromMenu(editor)));
           if (this.settings.tlFeaturesEnabled !== false) {
-            menu.addItem((i) => asOwnSection(i).setTitle("Toggle list").setIcon("list-plus").setDisabled(!this.canMakeToggleListFromEditor(editor)).onClick(() => this.makeToggleListFromEditorMenu(editor)));
+            menu.addItem((i) => asOwnSection(i).setTitle(paipaT("Toggle list")).setIcon("list-plus").setDisabled(!this.canMakeToggleListFromEditor(editor)).onClick(() => this.makeToggleListFromEditorMenu(editor)));
           }
           this.orderEditorMenuSection(menu);
           this.scheduleEditorMenuCleanup();
@@ -4050,7 +4179,7 @@ var require_toggle_engine = __commonJS({
           const doc = editor.cm.state.doc;
           const toggles = scanToggleBlocks(doc);
           if (toggles.some((t) => startLine === t.startLine || startLine === t.titleLine || startLine === t.endLine)) {
-            new import_obsidian.Notice("This row is already a toggle list");
+            new import_obsidian.Notice(paipaT("This row is already a toggle list"));
             editor.focus();
             return true;
           }
@@ -4795,34 +4924,34 @@ var require_toggle_engine = __commonJS({
         setTimeout(() => block.classList.remove("nsb-selected"), 1200);
         const menu = new import_obsidian.Menu();
         this.activeContextMenu = menu;
-        menu.addItem((i) => i.setTitle("Duplicate").setIcon("copy-plus").setDisabled(!isEdit).onClick(() => {
+        menu.addItem((i) => i.setTitle(paipaT("Duplicate")).setIcon("copy-plus").setDisabled(!isEdit).onClick(() => {
           if (isEdit) this.duplicate(block, editor, target);
         }));
-        menu.addItem((i) => i.setTitle("Paste").setIcon("clipboard").setDisabled(!isEdit).onClick(() => {
+        menu.addItem((i) => i.setTitle(paipaT("Paste")).setIcon("clipboard").setDisabled(!isEdit).onClick(() => {
           if (isEdit) {
             this.selectInEditor(block, editor, target);
             document.execCommand("paste");
           }
         }));
-        menu.addItem((i) => i.setTitle("Cut").setIcon("scissors").setDisabled(!isEdit).onClick(() => {
+        menu.addItem((i) => i.setTitle(paipaT("Cut")).setIcon("scissors").setDisabled(!isEdit).onClick(() => {
           if (isEdit) {
             this.selectInEditor(block, editor, target);
             document.execCommand("cut");
           }
         }));
-        menu.addItem((i) => i.setTitle("Delete").setIcon("trash").setDisabled(!isEdit).onClick(() => {
+        menu.addItem((i) => i.setTitle(paipaT("Delete")).setIcon("trash").setDisabled(!isEdit).onClick(() => {
           if (isEdit) this.deleteTargetBlockFromMenu(editor, target);
         }));
         menu.addSeparator();
-        menu.addItem((i) => i.setTitle("Insert line above").setIcon("arrow-up").setDisabled(!isEdit).onClick(() => {
+        menu.addItem((i) => i.setTitle(paipaT("Insert line above")).setIcon("arrow-up").setDisabled(!isEdit).onClick(() => {
           if (isEdit) this.insertLine(block, editor, "above", target);
         }));
-        menu.addItem((i) => i.setTitle("Insert line below").setIcon("arrow-down").setDisabled(!isEdit).onClick(() => {
+        menu.addItem((i) => i.setTitle(paipaT("Insert line below")).setIcon("arrow-down").setDisabled(!isEdit).onClick(() => {
           if (isEdit) this.insertLine(block, editor, "below", target);
         }));
         if (this.settings.tlFeaturesEnabled !== false) {
           menu.addSeparator();
-          menu.addItem((i) => i.setTitle("Toggle list").setIcon("list-plus").setDisabled(!canMakeToggle).onClick(() => {
+          menu.addItem((i) => i.setTitle(paipaT("Toggle list")).setIcon("list-plus").setDisabled(!canMakeToggle).onClick(() => {
             if (canMakeToggle) this.insertToggleListAfterTarget(editor, target);
           }));
         }
@@ -4894,12 +5023,12 @@ var require_toggle_engine = __commonJS({
           if (toggle) {
             const closeLen = (editor.getLine(toggle.endLine) || "").length;
             editor.replaceRange("\n" + info.text, { line: toggle.endLine, ch: closeLen });
-            new import_obsidian.Notice("Duplicated below");
+            new import_obsidian.Notice(paipaT("Duplicated below"));
             return;
           }
         }
         editor.replaceRange("\n" + info.text, { line: info.line, ch: (editor.getLine(info.line) || "").length });
-        new import_obsidian.Notice("Duplicated below");
+        new import_obsidian.Notice(paipaT("Duplicated below"));
       }
       insertLine(block, editor, dir, target) {
         if (editor && editor.cm && this.insertBlankLineAroundTargetCM(editor.cm, target, dir)) return;
@@ -5044,8 +5173,10 @@ var require_toggle_engine = __commonJS({
       }
       async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        paipaSetLang(this.settings.language);
       }
       async saveSettings() {
+        paipaSetLang(this.settings.language);
         await this.saveData(this.settings);
         setNsbTlFeaturesEnabled(this.settings.tlFeaturesEnabled);
         setNsbBlockFeaturesEnabled(this.settings.blockFeaturesEnabled);
@@ -5117,97 +5248,99 @@ var require_toggle_engine = __commonJS({
       display() {
         const { containerEl } = this;
         containerEl.empty();
-        containerEl.createEl("h2", { text: "Editor Enhancer\uFF08\u4F18\u5316\u7F16\u8F91\u5668\uFF09" });
-        new import_obsidian.Setting(containerEl).setName("\u542F\u7528\u5F00\u53D1\u8005\u6A21\u5F0F").setDesc("\u663E\u793A\u5168\u90E8\u9AD8\u7EA7\u8BBE\u7F6E\u3002").addToggle((t) => t.setValue(this.plugin.settings.developerMode === true).onChange(async (v) => {
-          this.plugin.settings.developerMode = v;
+        containerEl.createEl("h2", { text: paipaT("Editor Enhancer") });
+        new import_obsidian.Setting(containerEl).setName(paipaT("Language")).setDesc(paipaT("Follow Obsidian's language, or choose one for this plugin.")).addDropdown((d) => d.addOption("auto", paipaT("Follow Obsidian")).addOption("en", "English").addOption("zh", "中文").setValue(["auto", "en", "zh"].includes(this.plugin.settings.language) ? this.plugin.settings.language : "auto").onChange(async (v) => {
+          this.plugin.settings.language = v;
+          paipaSetLang(v);
           await this.plugin.saveSettings();
           this.display();
         }));
-        containerEl.createEl("h3", { text: "\u529F\u80FD\u6A21\u5757\uFF08\u5168\u90E8\u9ED8\u8BA4\u5F00\u542F\uFF0C\u53EF\u72EC\u7ACB\u5F00\u5173\uFF09" });
-        new import_obsidian.Setting(containerEl).setName("Notion \u5757\u529F\u80FD").setDesc("\u516D\u70B9\u62D6\u62FD\u624B\u67C4\u3001\u5757\u83DC\u5355\u3001\u52A0\u53F7\u63D2\u884C\u3001\u591A\u9009\u6574\u4F53\u62D6\u62FD\u4E0E\u5757\u95F4\u8DDD\u6392\u7248\u3002\u5173\u95ED\u540E\u6062\u590D\u539F\u751F\u5757\u4EA4\u4E92\uFF0C\u5176\u4ED6\u6A21\u5757\u4E0D\u53D7\u5F71\u54CD\u3002").addToggle((t) => t.setValue(this.plugin.settings.blockFeaturesEnabled !== false).onChange(async (v) => {
+        containerEl.createEl("h3", { text: paipaT("Feature modules (all on by default, each can be turned off separately)") });
+        new import_obsidian.Setting(containerEl).setName(paipaT("Notion blocks")).setDesc(paipaT("Six-dot drag handles, block menu, plus button to insert lines, multi-select drag and block spacing. When off, native block interaction returns; other modules are unaffected.")).addToggle((t) => t.setValue(this.plugin.settings.blockFeaturesEnabled !== false).onChange(async (v) => {
           this.plugin.settings.blockFeaturesEnabled = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("Toggle List \u529F\u80FD").setDesc("Notion \u5F0F\u53EF\u6298\u53E0\u5217\u8868\u53CA\u76F8\u5173\u539F\u751F\u884C\u4E3A\u4FEE\u6539\uFF08heading \u6298\u53E0\u63A5\u7BA1\u3001\u4FDD\u62A4\u884C\u7B49\uFF09\u3002\u5173\u95ED\u540E TL \u6807\u8BB0\u663E\u793A\u4E3A\u539F\u59CB\u6587\u672C\uFF0C\u91CD\u65B0\u5F00\u542F\u5373\u6062\u590D\u3002").addToggle((t) => t.setValue(this.plugin.settings.tlFeaturesEnabled !== false).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Toggle lists")).setDesc(paipaT("Notion-style collapsible lists and related changes to native behavior (heading folds taken over, protected lines, etc.). When off, toggle markers show as plain text; turning it back on restores them.")).addToggle((t) => t.setValue(this.plugin.settings.tlFeaturesEnabled !== false).onChange(async (v) => {
           this.plugin.settings.tlFeaturesEnabled = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u5217\u8868\u6807\u8BB0\u6574\u4F53\u5316").setDesc("\u5B9E\u65F6\u9884\u89C8\u91CC\uFF0C\u5217\u8868\u884C\u524D\u7684\u5706\u70B9 / \u6570\u5B57 / \u590D\u9009\u6846\u662F\u4E00\u4E2A\u6574\u4F53\uFF1A\u5149\u6807\u4E0D\u4F1A\u505C\u5728\u6807\u8BB0\u91CC\uFF0CBackspace \u4E00\u6B21\u5220\u6389\u6574\u4E2A\u6807\u8BB0\uFF08\u5D4C\u5957\u9879\u5148\u9000\u4E00\u7EA7\uFF09\uFF0C\u884C\u5C3E Delete \u4E00\u6B21\u5E76\u5165\u4E0B\u4E00\u9879\uFF0C\u2190 \u4ECE\u6587\u5B57\u5F00\u5934\u76F4\u63A5\u5230\u4E0A\u4E00\u884C\u672B\u5C3E\u3002\u5173\u95ED\u540E\u6062\u590D Obsidian \u539F\u751F\u7684\u9010\u5B57\u7B26\u5220\u9664\u3002").addToggle((t) => t.setValue(this.plugin.settings.listMarkerFeaturesEnabled !== false).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("List markers as a unit")).setDesc(paipaT("In Live Preview, the bullet / number / checkbox in front of a list line acts as one unit: the cursor never stops inside it, one Backspace removes the whole marker (a nested item first moves up one level), Delete at the end of a line joins the next item, and ← from the start of the text goes straight to the end of the previous line. When off, Obsidian's native character-by-character deletion returns.")).addToggle((t) => t.setValue(this.plugin.settings.listMarkerFeaturesEnabled !== false).onChange(async (v) => {
           this.plugin.settings.listMarkerFeaturesEnabled = v;
           setNsbListMarkerFeaturesEnabled(v);
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u53F3\u952E\u83DC\u5355\u589E\u5F3A").setDesc("\u6574\u7406\u53F3\u952E\u83DC\u5355\uFF08\u672C\u63D2\u4EF6\u7684\u83DC\u5355\u9879\u96C6\u4E2D\u4E3A\u72EC\u7ACB\u5206\u7EC4\u3001\u66FF\u6362\u539F\u751F\u5220\u9664\u9879\uFF09\u4EE5\u53CA\u300C\u53F3\u952E\u4E0D\u9009\u4E2D\u6574\u884C\u300D\u3002\u5173\u95ED\u540E\u53F3\u952E\u83DC\u5355\u5B8C\u5168\u6062\u590D Obsidian \u539F\u751F\u884C\u4E3A\u3002").addToggle((t) => t.setValue(this.plugin.settings.contextMenuFeaturesEnabled !== false).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Context menu enhancements")).setDesc(paipaT("Tidies the right-click menu (this plugin's items are grouped in their own section and replace the native delete item) and enables \"Don't select line on right-click\". When off, the right-click menu fully returns to Obsidian's native behavior.")).addToggle((t) => t.setValue(this.plugin.settings.contextMenuFeaturesEnabled !== false).onChange(async (v) => {
           this.plugin.settings.contextMenuFeaturesEnabled = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u8868\u683C\u94FE\u63A5\u8DF3\u8F6C\uFF08\u624B\u673A\u7AEF\uFF09").setDesc("\u624B\u673A\u4E0A\u70B9\u6309\u8868\u683C\u4E2D\u7684\u5185\u90E8\u94FE\u63A5\u76F4\u63A5\u8DF3\u8F6C\uFF08\u4E0E\u7535\u8111\u7AEF\u4E00\u81F4\uFF09\uFF1B\u70B9\u6309\u94FE\u63A5\u4EE5\u5916\u7684\u4F4D\u7F6E\u4ECD\u8FDB\u5165\u7F16\u8F91\uFF0C\u65E0\u6CD5\u89E3\u6790\u7684\u94FE\u63A5\u56DE\u843D\u4E3A\u7F16\u8F91\u3002").addToggle((t) => t.setValue(this.plugin.settings.mobileTableLinkNav !== false).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Table link navigation (mobile)")).setDesc(paipaT("On mobile, tapping an internal link in a table opens it directly (as on desktop); tapping anywhere else still starts editing, and links that can't be resolved fall back to editing.")).addToggle((t) => t.setValue(this.plugin.settings.mobileTableLinkNav !== false).onChange(async (v) => {
           this.plugin.settings.mobileTableLinkNav = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u8FD4\u56DE\u9875\u9762\u65F6\u6062\u590D\u6EDA\u52A8\u4F4D\u7F6E").setDesc("\u91CD\u65B0\u6253\u5F00\u672C\u6B21\u4F1A\u8BDD\u770B\u8FC7\u7684\u9875\u9762\uFF08\u5982\u70B9\u51FB\u94FE\u63A5\u540E\u8FD4\u56DE\uFF09\u65F6\uFF0C\u6062\u590D\u79BB\u5F00\u65F6\u7684\u6EDA\u52A8\u4F4D\u7F6E\uFF1B\u957F\u9875\u9762\u4E0D\u518D\u843D\u5230\u5E95\u7AEF\u3002").addToggle((t) => t.setValue(this.plugin.settings.restoreScrollOnReopen !== false).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Restore scroll position when returning to a page")).setDesc(paipaT("When you reopen a page viewed earlier in this session (for example, going back after following a link), the scroll position you left it at is restored; long pages no longer land at the bottom.")).addToggle((t) => t.setValue(this.plugin.settings.restoreScrollOnReopen !== false).onChange(async (v) => {
           this.plugin.settings.restoreScrollOnReopen = v;
           await this.plugin.saveSettings();
         }));
-        containerEl.createEl("h3", { text: "\u7EC6\u9879" });
-        new import_obsidian.Setting(containerEl).setName("\u53F3\u952E\u4E0D\u9009\u4E2D\u6574\u884C").setDesc("\u53F3\u952E\u53EA\u6253\u5F00\u83DC\u5355\uFF0C\u4E0D\u5148\u9009\u4E2D\u6574\u884C\uFF1B\u5DF2\u6709\u9009\u533A\u4F1A\u88AB\u4FDD\u7559\u3002\u9700\u5F00\u542F\u300C\u53F3\u952E\u83DC\u5355\u589E\u5F3A\u300D\u3002").addToggle((t) => t.setValue(this.plugin.settings.suppressRightClickLineSelection !== false).onChange(async (v) => {
+        containerEl.createEl("h3", { text: paipaT("Details") });
+        new import_obsidian.Setting(containerEl).setName(paipaT("Don't select line on right-click")).setDesc(paipaT("Right-click only opens the menu without selecting the whole line first; an existing selection is kept. Requires \"Context menu enhancements\".")).addToggle((t) => t.setValue(this.plugin.settings.suppressRightClickLineSelection !== false).onChange(async (v) => {
           this.plugin.settings.suppressRightClickLineSelection = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u542F\u7528\u6BB5\u843D\u95F4\u8DDD").setDesc("\u5728\u5185\u5BB9\u5757\u4E4B\u95F4\u6DFB\u52A0 Notion \u98CE\u683C\u7684\u989D\u5916\u95F4\u8DDD\u3002\u9700\u5F00\u542F\u300CNotion \u5757\u529F\u80FD\u300D\u3002").addToggle((t) => t.setValue(this.plugin.settings.blockSpacingEnabled).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Enable block spacing")).setDesc(paipaT("Add Notion-style extra spacing between content blocks. Requires \"Notion blocks\".")).addToggle((t) => t.setValue(this.plugin.settings.blockSpacingEnabled).onChange(async (v) => {
           this.plugin.settings.blockSpacingEnabled = v;
           await this.plugin.saveSettings();
           this.display();
         }));
-        if (this.plugin.settings.developerMode !== true) {
-          containerEl.createEl("p", { text: "Editor Enhancer | Author: paipa | v" + this.plugin.manifest.version, cls: "setting-item-description" });
-          return;
-        }
-        containerEl.createEl("h3", { text: "\u62D6\u62FD\u56FE\u6807" });
-        new import_obsidian.Setting(containerEl).setName("\u56FE\u6807\u900F\u660E\u5EA6").setDesc("\u60AC\u505C\u524D\u7684\u900F\u660E\u5EA6\uFF080.1 \u2013 1.0\uFF09\u3002").addSlider((s) => s.setLimits(0.1, 1, 0.05).setValue(this.plugin.settings.handleOpacity).setDynamicTooltip().onChange(async (v) => {
+        // Developer-mode settings are no longer shown here (the stored
+        // developerMode value is left as is); the controls below are kept,
+        // unreachable, for reference.
+        containerEl.createEl("p", { text: "Editor Enhancer | Author: paipa | v" + this.plugin.manifest.version, cls: "setting-item-description" });
+        return;
+        containerEl.createEl("h3", { text: paipaT("Drag handle") });
+        new import_obsidian.Setting(containerEl).setName(paipaT("Handle opacity")).setDesc(paipaT("Opacity before hover (0.1 – 1.0).")).addSlider((s) => s.setLimits(0.1, 1, 0.05).setValue(this.plugin.settings.handleOpacity).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.handleOpacity = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u56FE\u6807\u8DDD\u5185\u5BB9\u8DDD\u79BB").setDesc("\u56FE\u6807\u4E0E\u5185\u5BB9\u5DE6\u7F18\u7684\u95F4\u8DDD\uFF080 \u2013 40 px\uFF09\u3002").addSlider((s) => s.setLimits(0, 40, 1).setValue(this.plugin.settings.handleOffset).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Handle distance from content")).setDesc(paipaT("Gap between the handle and the left edge of the content (0 – 40 px).")).addSlider((s) => s.setLimits(0, 40, 1).setValue(this.plugin.settings.handleOffset).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.handleOffset = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u56FE\u6807\u5185\u8FB9\u8DDD").setDesc("\u5706\u70B9\u9635\u5217\u5230\u56FE\u6807\u8FB9\u6846\u7684\u8DDD\u79BB\uFF081 \u2013 16 px\uFF09\u3002").addSlider((s) => s.setLimits(1, 16, 0.5).setValue(this.plugin.settings.handleSize).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Handle padding")).setDesc(paipaT("Distance from the dot grid to the handle's border (1 – 16 px).")).addSlider((s) => s.setLimits(1, 16, 0.5).setValue(this.plugin.settings.handleSize).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.handleSize = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u5706\u70B9\u76F4\u5F84").setDesc("1.5 \u2013 8 px\u3002").addSlider((s) => s.setLimits(1.5, 8, 0.5).setValue(this.plugin.settings.dotSize).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Dot diameter")).setDesc(paipaT("1.5 – 8 px.")).addSlider((s) => s.setLimits(1.5, 8, 0.5).setValue(this.plugin.settings.dotSize).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.dotSize = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u5706\u70B9\u95F4\u8DDD").setDesc("1 \u2013 6 px\u3002").addSlider((s) => s.setLimits(1, 6, 0.5).setValue(this.plugin.settings.dotGap).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Dot spacing")).setDesc(paipaT("1 – 6 px.")).addSlider((s) => s.setLimits(1, 6, 0.5).setValue(this.plugin.settings.dotGap).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.dotGap = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u5706\u70B9\u7070\u5EA6").setDesc("0 = \u767D\uFF0C100 = \u9ED1\u3002").addSlider((s) => s.setLimits(0, 100, 1).setValue(this.plugin.settings.dotGray).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Dot gray level")).setDesc(paipaT("0 = white, 100 = black.")).addSlider((s) => s.setLimits(0, 100, 1).setValue(this.plugin.settings.dotGray).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.dotGray = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("Toggle \u4E09\u89D2\u56FE\u6807\u5927\u5C0F").setDesc("10 \u2013 28 px\u3002").addSlider((s) => s.setLimits(10, 28, 1).setValue(this.plugin.settings.toggleIconSize || 16).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Toggle triangle size")).setDesc(paipaT("10 – 28 px.")).addSlider((s) => s.setLimits(10, 28, 1).setValue(this.plugin.settings.toggleIconSize || 16).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.toggleIconSize = v;
           await this.plugin.saveSettings();
         }));
-        containerEl.createEl("h3", { text: "\u62D6\u62FD\u63D2\u5165\u4F4D\u7F6E\u6A2A\u7EBF" });
-        new import_obsidian.Setting(containerEl).setName("\u6A2A\u7EBF\u7C97\u7EC6").setDesc("1 \u2013 8 px\u3002").addSlider((s) => s.setLimits(1, 8, 0.5).setValue(this.plugin.settings.lineHeight).setDynamicTooltip().onChange(async (v) => {
+        containerEl.createEl("h3", { text: paipaT("Drop indicator line") });
+        new import_obsidian.Setting(containerEl).setName(paipaT("Line thickness")).setDesc(paipaT("1 – 8 px.")).addSlider((s) => s.setLimits(1, 8, 0.5).setValue(this.plugin.settings.lineHeight).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.lineHeight = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName("\u6A2A\u7EBF\u4E0D\u900F\u660E\u5EA6").setDesc("0.1 \u2013 1.0\u3002").addSlider((s) => s.setLimits(0.1, 1, 0.05).setValue(this.plugin.settings.lineOpacity).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Line opacity")).setDesc(paipaT("0.1 – 1.0.")).addSlider((s) => s.setLimits(0.1, 1, 0.05).setValue(this.plugin.settings.lineOpacity).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.lineOpacity = v;
           await this.plugin.saveSettings();
         }));
         if (this.plugin.settings.blockSpacingEnabled) {
-          containerEl.createEl("h3", { text: "Notion \u98CE\u683C\u884C\u95F4\u8DDD" });
-          new import_obsidian.Setting(containerEl).setName("Block \u95F4\u8DDD").setDesc("\u76F8\u90BB\u5185\u5BB9\u5757\u4E4B\u95F4\u7684\u95F4\u8DDD\uFF082 \u2013 32 px\uFF09\u3002").addSlider((s) => s.setLimits(2, 32, 1).setValue(this.plugin.settings.blockSpacingPx).setDynamicTooltip().onChange(async (v) => {
+          containerEl.createEl("h3", { text: paipaT("Notion-style spacing") });
+          new import_obsidian.Setting(containerEl).setName(paipaT("Block spacing")).setDesc(paipaT("Spacing between adjacent content blocks (2 – 32 px).")).addSlider((s) => s.setLimits(2, 32, 1).setValue(this.plugin.settings.blockSpacingPx).setDynamicTooltip().onChange(async (v) => {
             this.plugin.settings.blockSpacingPx = v;
             await this.plugin.saveSettings();
           }));
-          new import_obsidian.Setting(containerEl).setName("Block \u5185\u884C\u95F4\u8DDD").setDesc("\u540C\u4E00 block \u5185\u591A\u884C\u6587\u5B57\u7684\u989D\u5916\u884C\u8DDD\uFF080 = \u4E3B\u9898\u9ED8\u8BA4\uFF0C\u6700\u5927 20 px\uFF09\u3002").addSlider((s) => s.setLimits(0, 20, 1).setValue(this.plugin.settings.lineSpacingPx).setDynamicTooltip().onChange(async (v) => {
+          new import_obsidian.Setting(containerEl).setName(paipaT("Line spacing within a block")).setDesc(paipaT("Extra spacing between lines of text within one block (0 = theme default, up to 20 px).")).addSlider((s) => s.setLimits(0, 20, 1).setValue(this.plugin.settings.lineSpacingPx).setDynamicTooltip().onChange(async (v) => {
             this.plugin.settings.lineSpacingPx = v;
             await this.plugin.saveSettings();
           }));
@@ -5232,9 +5365,10 @@ var HeaderWidget = class extends WidgetType {
     super();
     this.plugin = plugin;
     this.block = block;
+    this.lang = paipaEffectiveLang();
   }
   eq(other) {
-    return this.plugin === other.plugin && this.block.from === other.block.from && this.block.id === other.block.id && JSON.stringify(this.block.meta.expiry) === JSON.stringify(other.block.meta.expiry) && this.block.daysLeft === other.block.daysLeft;
+    return this.plugin === other.plugin && this.block.from === other.block.from && this.block.id === other.block.id && JSON.stringify(this.block.meta.expiry) === JSON.stringify(other.block.meta.expiry) && this.block.daysLeft === other.block.daysLeft && this.lang === other.lang;
   }
   toDOM(view) {
     const b = this.block, document2 = view.dom.ownerDocument;
@@ -5251,16 +5385,16 @@ var HeaderWidget = class extends WidgetType {
     });
     const el = document2.createElement("span");
     el.className = "eb-badge";
-    el.textContent = b.daysLeft + " " + (b.daysLeft === 1 ? "day" : "days");
+    el.textContent = b.daysLeft === 1 ? paipaT("{n} day", { n: b.daysLeft }) : paipaT("{n} days", { n: b.daysLeft });
     el.dataset.urgency = b.daysLeft === 1 ? "urgent" : b.daysLeft === 2 ? "soon" : "normal";
-    el.title = "\u5230\u671F\u65E5\u671F\uFF1A" + core.expiryDate(b.meta.expiry) + (b.daysLeft === 0 ? "\uFF1B\u6B63\u6587\u5DF2\u5230\u671F" : "\uFF1B\u5230\u671F\u81EA\u52A8\u6E05\u7A7A\u6B63\u6587");
-    el.setAttribute("aria-label", el.textContent + "\uFF0C" + el.title);
+    el.title = b.daysLeft === 0 ? paipaT("Expires on {date}; contents have expired", { date: core.expiryDate(b.meta.expiry) }) : paipaT("Expires on {date}; contents are cleared when it expires", { date: core.expiryDate(b.meta.expiry) });
+    el.setAttribute("aria-label", paipaT("{badge}, {title}", { badge: el.textContent, title: el.title }));
     const reset = document2.createElement("button");
     reset.className = "eb-reset";
     reset.type = "button";
     reset.textContent = "\u21BA";
-    reset.title = "\u4ECE\u4ECA\u5929\u91CD\u65B0\u8BA1\u65F6";
-    reset.setAttribute("aria-label", "\u91CD\u7F6E\u65F6\u6548");
+    reset.title = paipaT("Restart the timer from today");
+    reset.setAttribute("aria-label", paipaT("Reset timer"));
     reset.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -5275,8 +5409,8 @@ var HeaderWidget = class extends WidgetType {
     const clear = document2.createElement("button");
     clear.className = "eb-clear clickable-icon";
     clear.type = "button";
-    clear.title = "Clear contents";
-    clear.setAttribute("aria-label", "Clear contents");
+    clear.title = paipaT("Clear contents");
+    clear.setAttribute("aria-label", paipaT("Clear contents"));
     setIcon(clear, "eraser");
     clear.addEventListener("click", (e) => {
       e.preventDefault();
@@ -5298,7 +5432,8 @@ var HeaderWidget = class extends WidgetType {
 };
 var ExpiringBlocks = class extends Plugin {
   async onload() {
-    this.settings = { days: 7, ...await this.loadData() };
+    this.settings = { days: 7, language: "auto", ...await this.loadData() };
+    paipaSetLang(this.settings.language);
     if (!validDays(this.settings.days)) this.settings.days = 7;
     this.stopped = false;
     this.pendingFiles = /* @__PURE__ */ new Map();
@@ -5325,11 +5460,11 @@ var ExpiringBlocks = class extends Plugin {
       const line = pointer ? hit.line : editor.getCursor().line;
       if (!this.canCreate(editor, line, pointer)) return;
       const doc = editor.cm.state.doc;
-      menu.addItem((item) => item.setTitle("Expiring block").setIcon("hourglass").setSection("editor-enhancer").onClick(() => {
+      menu.addItem((item) => item.setTitle(paipaT("Expiring block")).setIcon("hourglass").setSection("editor-enhancer").onClick(() => {
         if (editor.cm.state.doc === doc) this.create(editor, line, pointer);
       }));
     }));
-    this.addCommand({ id: "create", name: "Create expiring block", editorCheckCallback: (checking, editor) => {
+    this.addCommand({ id: "create", name: paipaT("Create expiring block"), editorCheckCallback: (checking, editor) => {
       if (!this.canCreate(editor)) return false;
       if (!checking) this.create(editor, editor.getCursor().line);
       return true;
@@ -5388,6 +5523,7 @@ var ExpiringBlocks = class extends Plugin {
     const fallback = new ToggleEngine(this.app, { ...this.manifest, id: "expiring-blocks-engine" });
     fallback.isExpiringFallback = true;
     fallback.loadData = async () => ({
+      language: this.settings.language,
       tlFeaturesEnabled: false,
       blockFeaturesEnabled: false,
       contextMenuFeaturesEnabled: false,
@@ -5405,7 +5541,7 @@ var ExpiringBlocks = class extends Plugin {
     fallback.load();
     for (let n = 0; n < 100 && !fallback.toggleApi; n++) await new Promise((r) => setTimeout(r, 10));
     if (this.fallback !== fallback || this.stopped) return;
-    if (!fallback.toggleApi) throw new Error("\u6298\u53E0\u5F15\u64CE\u672A\u80FD\u8F7D\u5165");
+    if (!fallback.toggleApi) throw new Error(paipaT("Toggle engine failed to load"));
     this.engine = fallback;
     fallback.setExpiringAdapter(this.adapter);
   }
@@ -5427,7 +5563,7 @@ var ExpiringBlocks = class extends Plugin {
   }
   create(editor, line, atPointer = false) {
     if (!this.canCreate(editor, line, atPointer)) return;
-    const cm = editor.cm, row = cm.state.doc.line(line + 1), title = "\u4E34\u65F6\u8BB0\u5F55";
+    const cm = editor.cm, row = cm.state.doc.line(line + 1), title = paipaT("Scratch");
     const meta = core.renew({ id: "tgl-eb-" + crypto.randomUUID(), open: true, v: 2 }, this.settings.days);
     const insert = title + " " + core.marker(meta) + "\n\n%% /nsb-toggle %%\n";
     cm.dispatch({
@@ -5474,7 +5610,7 @@ var ExpiringBlocks = class extends Plugin {
     const text = cm.state.doc.toString();
     const b = core.scan(text).find((b2) => b2.id === id && b2.from === row.from);
     if (!b) {
-      new Notice("Cannot clear an incomplete block.");
+      new Notice(paipaT("Cannot clear an incomplete block."));
       return;
     }
     const newline = text.slice(b.titleTo, b.bodyFrom) || "\n";
@@ -5513,7 +5649,7 @@ var ExpiringBlocks = class extends Plugin {
         if (n === visible[0]) cls += " eb-body-first";
         if (n === visible[visible.length - 1]) cls += " eb-body-last";
         if (t.bodyStartLine === t.bodyEndLine && !b.body.trim()) cls += " eb-body-empty";
-        decos.push(Decoration.line({ attributes: { class: cls, "data-eb-placeholder": "\u5199\u4E0B\u6682\u65F6\u9700\u8981\u4FDD\u7559\u7684\u5185\u5BB9\u2026" } }).range(doc.line(n + 1).from));
+        decos.push(Decoration.line({ attributes: { class: cls, "data-eb-placeholder": paipaT("Write down what you need to keep for now\u2026") } }).range(doc.line(n + 1).from));
       }
     }
   }
@@ -5609,7 +5745,7 @@ var ExpiringBlocks = class extends Plugin {
   }
   report(error) {
     console.error("Expiring Blocks:", error);
-    new Notice("\u65F6\u6548\u5757\u672A\u80FD\u5B8C\u6210\u66F4\u65B0\uFF1A" + error.message);
+    new Notice(paipaT("Expiring block update failed: {error}", { error: error.message }));
   }
   onunload() {
     this.stopped = true;
@@ -5628,23 +5764,30 @@ var ExpiringSettings = class extends PluginSettingTab {
   }
   display() {
     this.containerEl.empty();
-    this.containerEl.createEl("h2", { text: "Expiring Blocks" });
-    new Setting(this.containerEl).setName("Lifetime (days)").setDesc("1\u20133650 days. Applied when editing content or resetting.").addText((text) => {
+    this.containerEl.createEl("h2", { text: paipaT("Expiring Blocks") });
+    new Setting(this.containerEl).setName(paipaT("Language")).setDesc(paipaT("Follow Obsidian's language, or choose one for this plugin.")).addDropdown((d) => d.addOption("auto", paipaT("Follow Obsidian")).addOption("en", "English").addOption("zh", "中文").setValue(["auto", "en", "zh"].includes(this.plugin.settings.language) ? this.plugin.settings.language : "auto").onChange(async (value) => {
+      this.plugin.settings.language = value;
+      paipaSetLang(value);
+      await this.plugin.saveData(this.plugin.settings);
+      this.display();
+      this.plugin.engine?.toggleApi.refresh();
+    }));
+    new Setting(this.containerEl).setName(paipaT("Lifetime (days)")).setDesc(paipaT("1\u20133650 days. Applied when editing content or resetting.")).addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "1";
       text.inputEl.max = "3650";
       text.inputEl.step = "1";
       text.setValue(String(this.plugin.settings.days)).onChange(async (value) => {
         const days = Number(value);
-        text.inputEl.setCustomValidity(validDays(days) ? "" : "Enter a whole number from 1 to 3650.");
+        text.inputEl.setCustomValidity(validDays(days) ? "" : paipaT("Enter a whole number from 1 to 3650."));
         if (validDays(days)) {
           this.plugin.settings.days = days;
           await this.plugin.saveData(this.plugin.settings);
         }
       });
     });
-    this.containerEl.createEl("p", { text: "Right-click a blank line to create a block. Reset restarts the timer; Clear removes its contents." });
-    this.containerEl.createEl("p", { text: "2 days: yellow. 1 day: red. Expired contents are cleared; titles remain. Checked on opening, focus, midnight and every 2 hours." });
+    this.containerEl.createEl("p", { text: paipaT("Right-click a blank line to create a block. Reset restarts the timer; Clear removes its contents.") });
+    this.containerEl.createEl("p", { text: paipaT("2 days: yellow. 1 day: red. Expired contents are cleared; titles remain. Checked on opening, focus, midnight and every 2 hours.") });
   }
 };
 module.exports = ExpiringBlocks;
