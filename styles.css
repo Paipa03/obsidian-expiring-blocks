@@ -1,0 +1,91 @@
+/* A monochrome input shell; color is reserved for approaching expiry. */
+.cm-editor .cm-content > .cm-line.eb-title-line {
+  font-weight: 500;
+  border-radius: 5px;
+}
+.eb-header-prefix {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .125em;
+  padding-inline-end: .7em;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.eb-badge {
+  display: inline-block;
+  vertical-align: baseline;
+  margin: 0;
+  padding: .08em .34em;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font: 500 .79em/1.4 var(--font-interface);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.eb-badge[data-urgency="soon"] { background: rgb(210 175 45 / 20%); color: var(--text-normal); }
+.eb-badge[data-urgency="urgent"] { background: rgb(215 85 85 / 17%); color: var(--text-normal); }
+.theme-dark .eb-badge[data-urgency="soon"] { background: rgb(230 195 70 / 22%); }
+.theme-dark .eb-badge[data-urgency="urgent"] { background: rgb(223 106 106 / 22%); }
+.cm-editor button.eb-reset,
+.cm-editor button.eb-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: baseline;
+  margin: 0;
+  padding: 0 .22em;
+  height: 1.5em;
+  min-width: 1.5em;
+  border: 0;
+  box-shadow: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: .9em;
+  cursor: pointer;
+}
+.cm-editor button.eb-reset:hover, .cm-editor button.eb-clear:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.cm-editor button.eb-reset:focus-visible, .cm-editor button.eb-clear:focus-visible { outline: 1px solid var(--text-muted); outline-offset: 2px; }
+.eb-clear svg { width: 1em; height: 1em; }
+.cm-editor .cm-content > .cm-line.eb-body-line {
+  background: var(--background-secondary);
+  border-inline: 1px solid var(--background-modifier-border-hover);
+  padding-block: 0 !important;
+  padding-inline-end: 12px !important;
+  margin-block: 0 !important;
+  min-height: 1.55em;
+}
+.cm-editor .cm-content > .cm-line.eb-body-first {
+  border-top: 1px solid var(--background-modifier-border-hover);
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  padding-top: 7px !important;
+  margin-top: 3px !important;
+}
+.cm-editor .cm-content > .cm-line.eb-body-last {
+  border-bottom: 1px solid var(--background-modifier-border-hover);
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding-bottom: 7px !important;
+  margin-bottom: 5px !important;
+}
+.cm-editor .cm-content > .cm-line.eb-body-empty { position: relative; }
+.cm-editor .cm-content > .cm-line.eb-body-empty:after {
+  content: attr(data-eb-placeholder);
+  position: absolute;
+  left: calc(18px + var(--nsb-toggle-depth, 1) * 22px);
+  right: 12px;
+  top: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-faint);
+  pointer-events: none;
+  font-size: .9em;
+}
+.cm-editor .eb-body-visual {
+  background: var(--background-secondary) !important;
+  border: 1px solid var(--background-modifier-border-hover) !important;
+  border-radius: 6px;
+}
