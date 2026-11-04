@@ -1,16 +1,17 @@
 /*
- * 双插件同步铁律（每次维护必读）
- * Expiring Blocks 与 Editor Enhancer（id `editor-enhancer`）是配套项目。共同影响范围：
- * NSB v2 标记/expiry 元数据；标题光标与 marker guard/atomic ranges；
- * 折叠、滚动钉住、层级与嵌入布局/CSS；块边界、拖拽、菜单；
- * toggleApi、expiringBlocks 装饰接口与引擎 loading/ready/unloaded 交接。
- * 任一方更新以上功能，必须检查并同步另一插件受影响的接口、代码和测试。
- * NSB main.js 是共享引擎唯一源；先改源，再经 build.cjs 同步 vendor 并重建
- * 时效块 main.js，禁止只改副本。时效块变更必须反查 NSB 调用方/守卫/布局。
- * 两侧检查通过后一起重载，验收并存与独立接管；不得带失配版本交付。
- * troubleshoot/修复先读 AIVault Peanut2 的 C07、C06、C09 相关最新记录。
+ * Expiring Blocks 1.0.10 - by paipa, MIT License
+ * https://github.com/Paipa03/obsidian-expiring-blocks
+ *
+ * Maintainer notes:
+ * - Editor Enhancer and Expiring Blocks share one toggle / layout engine
+ *   (toggle markers and expiry metadata, title caret guards, folding and scroll
+ *   pinning, hierarchy layout CSS, block boundaries / drag / menus, toggleApi and
+ *   the engine hand-over). Editor Enhancer's main.js is the source of that
+ *   engine; Expiring Blocks ships a copy so it also works on its own.
+ * - Any change to the shared engine goes into both plugins in the same release,
+ *   tested with both installed and with each one installed alone.
  */
-/* Expiring Blocks 1.0.9 · paipa. Includes the synchronized NSB toggle/layout engine. */
+
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   try {
@@ -5159,7 +5160,7 @@ var require_toggle_engine = __commonJS({
           this.display();
         }));
         if (this.plugin.settings.developerMode !== true) {
-          containerEl.createEl("p", { text: "Editor Enhancer | Author: paipa | v1.2.0", cls: "setting-item-description" });
+          containerEl.createEl("p", { text: "Editor Enhancer | Author: paipa | v" + this.plugin.manifest.version, cls: "setting-item-description" });
           return;
         }
         containerEl.createEl("h3", { text: "\u62D6\u62FD\u56FE\u6807" });
@@ -5211,7 +5212,7 @@ var require_toggle_engine = __commonJS({
             await this.plugin.saveSettings();
           }));
         }
-        containerEl.createEl("p", { text: "Editor Enhancer | Author: paipa | v1.2.0", cls: "setting-item-description" });
+        containerEl.createEl("p", { text: "Editor Enhancer | Author: paipa | v" + this.plugin.manifest.version, cls: "setting-item-description" });
       }
     };
   }
