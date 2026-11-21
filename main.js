@@ -1,5 +1,5 @@
 /*
- * Expiring Blocks 1.1.1 - by paipa, MIT License
+ * Expiring Blocks 1.1.2 - by paipa, MIT License
  * https://github.com/Paipa03/obsidian-expiring-blocks
  *
  * Maintainer notes:
@@ -1640,6 +1640,10 @@ var require_toggle_engine = __commonJS({
         this.toggleButtons = [];
         this.toggleButtonRaf = null;
         this.hierarchyMutationRaf = null;
+        this.hierarchyDirty = true;
+        this.hierarchyMarked = false;
+        this.toggleScanDoc = null;
+        this.toggleScan = null;
         this.savedRightClickSelection = null;
         this.savedRightClickNativeRanges = null;
         this.onToggleRowMouseDown = this.handleToggleRowMouseDown.bind(this);
@@ -1679,15 +1683,12 @@ var require_toggle_engine = __commonJS({
           if (this.hierarchyMutationRaf !== null) return;
           const relevant = mutations.some((m) => Array.from(m.addedNodes || []).some(nodeHasNsbEmbedLikeContent));
           if (!relevant) return;
-          this.hierarchyMutationRaf = requestAnimationFrame(() => {
-            this.hierarchyMutationRaf = null;
-            this.applyHierarchyVisualLayout(scanToggleBlocks(this.view.state.doc));
-          });
+          this.scheduleHierarchyLayout();
         });
         this.hierarchyMutationObserver.observe(this.scroller, { childList: true, subtree: true });
         this.onWindowResize = () => {
           this.scheduleGutterCheck();
-          this.scheduleToggleButtons();
+          this.scheduleHierarchyLayout();
           if (this.resizeSettleTimer) clearTimeout(this.resizeSettleTimer);
           this.resizeSettleTimer = setTimeout(() => {
             this.resizeSettleTimer = null;
@@ -1705,13 +1706,14 @@ var require_toggle_engine = __commonJS({
         const livePreviewMode = isLivePreviewEditorView(this.view);
         if (livePreviewMode !== this.livePreviewMode) {
           this.livePreviewMode = livePreviewMode;
+          this.hierarchyDirty = true;
           this.scheduleLivePreviewStateSync();
           if (!livePreviewMode) {
             this.clearToggleButtons();
             this.clearHierarchyVisualLayout();
           }
         }
-        if (update.docChanged || update.viewportChanged || update.geometryChanged) this.scheduleToggleButtons();
+        if (update.docChanged || update.viewportChanged || update.geometryChanged) this.scheduleHierarchyLayout();
         if (update.docChanged) this.scheduleLegacyMigration();
         if (update.docChanged || update.transactions.some((tr) => tr.effects && tr.effects.length)) {
           this.scheduleNativeFoldGuard();
@@ -1820,6 +1822,21 @@ var require_toggle_engine = __commonJS({
           this.renderToggleButtons();
         });
       }
+      // Hierarchy layout only has to run when the document, the viewport or the
+      // DOM changed; a plain scroll just repositions the triangles. Content-block
+      // providers (Gallery View) call this after rendering a widget.
+      scheduleHierarchyLayout() {
+        this.hierarchyDirty = true;
+        this.scheduleToggleButtons();
+      }
+      toggleBlocks() {
+        const doc = this.view.state.doc;
+        if (this.toggleScanDoc !== doc) {
+          this.toggleScan = scanToggleBlocks(doc);
+          this.toggleScanDoc = doc;
+        }
+        return this.toggleScan;
+      }
       clearToggleButtons() {
         for (const btn of this.toggleButtons) btn.remove();
         this.toggleButtons = [];
@@ -1828,19 +1845,25 @@ var require_toggle_engine = __commonJS({
         this.clearToggleButtons();
         if (!this.livePreviewMode) {
           this.clearHierarchyVisualLayout();
+          this.hierarchyMarked = false;
+          this.hierarchyDirty = true;
           return;
         }
         const doc = this.view.state.doc;
-        const toggles = scanToggleBlocks(doc);
-        this.applyHierarchyVisualLayout(toggles);
+        const toggles = this.toggleBlocks();
+        if (this.hierarchyDirty) {
+          this.hierarchyDirty = false;
+          this.applyHierarchyVisualLayout(toggles);
+        }
         if (!toggles.length) return;
         const scrollerRect = this.scroller.getBoundingClientRect();
+        const titleLines = Array.from(this.scroller.querySelectorAll(".cm-line.nsb-toggle-title-line"));
         const seenTitleLines = /* @__PURE__ */ new Set();
         for (const t of toggles) {
           if (isLineHiddenByCollapsedToggle(toggles, t.titleLine)) continue;
           if (seenTitleLines.has(t.titleLine)) continue;
           seenTitleLines.add(t.titleLine);
-          const line = Array.from(this.scroller.querySelectorAll(".cm-line.nsb-toggle-title-line")).find((el) => el.getAttribute("data-nsb-toggle-id") === t.id) || domLineForNum(this.view, this.scroller, t.titleLine);
+          const line = titleLines.find((el) => el.getAttribute("data-nsb-toggle-id") === t.id) || domLineForNum(this.view, this.scroller, t.titleLine);
           if (!line) continue;
           const r = line.getBoundingClientRect();
           if (r.bottom < scrollerRect.top || r.top > scrollerRect.bottom) continue;
@@ -1942,8 +1965,11 @@ var require_toggle_engine = __commonJS({
         el.classList.add("nsb-hierarchy-frame-clean");
       }
       applyHierarchyVisualLayout(toggles) {
+        const any = !!(toggles && toggles.length);
+        if (!any && !this.hierarchyMarked) return;
         this.clearHierarchyVisualLayout();
-        if (!toggles || !toggles.length) return;
+        this.hierarchyMarked = any;
+        if (!any) return;
         const doc = this.view.state.doc;
         const wbFences = scanWbFences(doc);
         const quoteRanges = scanQuoteBlocks(doc);
@@ -2376,7 +2402,6 @@ var require_toggle_engine = __commonJS({
               return "";
             }
           };
-          // Titles may be translated: match the English title or its Chinese text, then the icon.
           const rank = (item) => {
             const title = titleOf(item);
             let k = order.findIndex((en) => en === title || PAIPA_I18N_ZH[en] === title);
@@ -5261,7 +5286,7 @@ var require_toggle_engine = __commonJS({
         const { containerEl } = this;
         containerEl.empty();
         containerEl.createEl("h2", { text: paipaT("Editor Enhancer") });
-        new import_obsidian.Setting(containerEl).setName(paipaT("Language")).setDesc(paipaT("Follow Obsidian's language, or choose one for this plugin.")).addDropdown((d) => d.addOption("auto", paipaT("Follow Obsidian")).addOption("en", "English").addOption("zh", "中文").setValue(["auto", "en", "zh"].includes(this.plugin.settings.language) ? this.plugin.settings.language : "auto").onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Language")).setDesc(paipaT("Follow Obsidian's language, or choose one for this plugin.")).addDropdown((d) => d.addOption("auto", paipaT("Follow Obsidian")).addOption("en", "English").addOption("zh", "\u4E2D\u6587").setValue(["auto", "en", "zh"].includes(this.plugin.settings.language) ? this.plugin.settings.language : "auto").onChange(async (v) => {
           this.plugin.settings.language = v;
           paipaSetLang(v);
           await this.plugin.saveSettings();
@@ -5276,12 +5301,12 @@ var require_toggle_engine = __commonJS({
           this.plugin.settings.tlFeaturesEnabled = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("List markers as a unit")).setDesc(paipaT("In Live Preview, the bullet / number / checkbox in front of a list line acts as one unit: the cursor never stops inside it, one Backspace removes the whole marker (a nested item first moves up one level), Delete at the end of a line joins the next item, and ← from the start of the text goes straight to the end of the previous line. When off, Obsidian's native character-by-character deletion returns.")).addToggle((t) => t.setValue(this.plugin.settings.listMarkerFeaturesEnabled !== false).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("List markers as a unit")).setDesc(paipaT("In Live Preview, the bullet / number / checkbox in front of a list line acts as one unit: the cursor never stops inside it, one Backspace removes the whole marker (a nested item first moves up one level), Delete at the end of a line joins the next item, and \u2190 from the start of the text goes straight to the end of the previous line. When off, Obsidian's native character-by-character deletion returns.")).addToggle((t) => t.setValue(this.plugin.settings.listMarkerFeaturesEnabled !== false).onChange(async (v) => {
           this.plugin.settings.listMarkerFeaturesEnabled = v;
           setNsbListMarkerFeaturesEnabled(v);
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("Context menu enhancements")).setDesc(paipaT("Tidies the right-click menu (this plugin's items are grouped in their own section and replace the native delete item) and enables \"Don't select line on right-click\". When off, the right-click menu fully returns to Obsidian's native behavior.")).addToggle((t) => t.setValue(this.plugin.settings.contextMenuFeaturesEnabled !== false).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Context menu enhancements")).setDesc(paipaT(`Tidies the right-click menu (this plugin's items are grouped in their own section and replace the native delete item) and enables "Don't select line on right-click". When off, the right-click menu fully returns to Obsidian's native behavior.`)).addToggle((t) => t.setValue(this.plugin.settings.contextMenuFeaturesEnabled !== false).onChange(async (v) => {
           this.plugin.settings.contextMenuFeaturesEnabled = v;
           await this.plugin.saveSettings();
         }));
@@ -5294,38 +5319,35 @@ var require_toggle_engine = __commonJS({
           await this.plugin.saveSettings();
         }));
         containerEl.createEl("h3", { text: paipaT("Details") });
-        new import_obsidian.Setting(containerEl).setName(paipaT("Don't select line on right-click")).setDesc(paipaT("Right-click only opens the menu without selecting the whole line first; an existing selection is kept. Requires \"Context menu enhancements\".")).addToggle((t) => t.setValue(this.plugin.settings.suppressRightClickLineSelection !== false).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Don't select line on right-click")).setDesc(paipaT('Right-click only opens the menu without selecting the whole line first; an existing selection is kept. Requires "Context menu enhancements".')).addToggle((t) => t.setValue(this.plugin.settings.suppressRightClickLineSelection !== false).onChange(async (v) => {
           this.plugin.settings.suppressRightClickLineSelection = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("Enable block spacing")).setDesc(paipaT("Add Notion-style extra spacing between content blocks. Requires \"Notion blocks\".")).addToggle((t) => t.setValue(this.plugin.settings.blockSpacingEnabled).onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Enable block spacing")).setDesc(paipaT('Add Notion-style extra spacing between content blocks. Requires "Notion blocks".')).addToggle((t) => t.setValue(this.plugin.settings.blockSpacingEnabled).onChange(async (v) => {
           this.plugin.settings.blockSpacingEnabled = v;
           await this.plugin.saveSettings();
           this.display();
         }));
-        // Developer-mode settings are no longer shown here (the stored
-        // developerMode value is left as is); the controls below are kept,
-        // unreachable, for reference.
         containerEl.createEl("p", { text: "Editor Enhancer | Author: paipa | v" + this.plugin.manifest.version, cls: "setting-item-description" });
         return;
         containerEl.createEl("h3", { text: paipaT("Drag handle") });
-        new import_obsidian.Setting(containerEl).setName(paipaT("Handle opacity")).setDesc(paipaT("Opacity before hover (0.1 – 1.0).")).addSlider((s) => s.setLimits(0.1, 1, 0.05).setValue(this.plugin.settings.handleOpacity).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Handle opacity")).setDesc(paipaT("Opacity before hover (0.1 \u2013 1.0).")).addSlider((s) => s.setLimits(0.1, 1, 0.05).setValue(this.plugin.settings.handleOpacity).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.handleOpacity = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("Handle distance from content")).setDesc(paipaT("Gap between the handle and the left edge of the content (0 – 40 px).")).addSlider((s) => s.setLimits(0, 40, 1).setValue(this.plugin.settings.handleOffset).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Handle distance from content")).setDesc(paipaT("Gap between the handle and the left edge of the content (0 \u2013 40 px).")).addSlider((s) => s.setLimits(0, 40, 1).setValue(this.plugin.settings.handleOffset).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.handleOffset = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("Handle padding")).setDesc(paipaT("Distance from the dot grid to the handle's border (1 – 16 px).")).addSlider((s) => s.setLimits(1, 16, 0.5).setValue(this.plugin.settings.handleSize).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Handle padding")).setDesc(paipaT("Distance from the dot grid to the handle's border (1 \u2013 16 px).")).addSlider((s) => s.setLimits(1, 16, 0.5).setValue(this.plugin.settings.handleSize).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.handleSize = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("Dot diameter")).setDesc(paipaT("1.5 – 8 px.")).addSlider((s) => s.setLimits(1.5, 8, 0.5).setValue(this.plugin.settings.dotSize).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Dot diameter")).setDesc(paipaT("1.5 \u2013 8 px.")).addSlider((s) => s.setLimits(1.5, 8, 0.5).setValue(this.plugin.settings.dotSize).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.dotSize = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("Dot spacing")).setDesc(paipaT("1 – 6 px.")).addSlider((s) => s.setLimits(1, 6, 0.5).setValue(this.plugin.settings.dotGap).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Dot spacing")).setDesc(paipaT("1 \u2013 6 px.")).addSlider((s) => s.setLimits(1, 6, 0.5).setValue(this.plugin.settings.dotGap).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.dotGap = v;
           await this.plugin.saveSettings();
         }));
@@ -5333,22 +5355,22 @@ var require_toggle_engine = __commonJS({
           this.plugin.settings.dotGray = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("Toggle triangle size")).setDesc(paipaT("10 – 28 px.")).addSlider((s) => s.setLimits(10, 28, 1).setValue(this.plugin.settings.toggleIconSize || 16).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Toggle triangle size")).setDesc(paipaT("10 \u2013 28 px.")).addSlider((s) => s.setLimits(10, 28, 1).setValue(this.plugin.settings.toggleIconSize || 16).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.toggleIconSize = v;
           await this.plugin.saveSettings();
         }));
         containerEl.createEl("h3", { text: paipaT("Drop indicator line") });
-        new import_obsidian.Setting(containerEl).setName(paipaT("Line thickness")).setDesc(paipaT("1 – 8 px.")).addSlider((s) => s.setLimits(1, 8, 0.5).setValue(this.plugin.settings.lineHeight).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Line thickness")).setDesc(paipaT("1 \u2013 8 px.")).addSlider((s) => s.setLimits(1, 8, 0.5).setValue(this.plugin.settings.lineHeight).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.lineHeight = v;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian.Setting(containerEl).setName(paipaT("Line opacity")).setDesc(paipaT("0.1 – 1.0.")).addSlider((s) => s.setLimits(0.1, 1, 0.05).setValue(this.plugin.settings.lineOpacity).setDynamicTooltip().onChange(async (v) => {
+        new import_obsidian.Setting(containerEl).setName(paipaT("Line opacity")).setDesc(paipaT("0.1 \u2013 1.0.")).addSlider((s) => s.setLimits(0.1, 1, 0.05).setValue(this.plugin.settings.lineOpacity).setDynamicTooltip().onChange(async (v) => {
           this.plugin.settings.lineOpacity = v;
           await this.plugin.saveSettings();
         }));
         if (this.plugin.settings.blockSpacingEnabled) {
           containerEl.createEl("h3", { text: paipaT("Notion-style spacing") });
-          new import_obsidian.Setting(containerEl).setName(paipaT("Block spacing")).setDesc(paipaT("Spacing between adjacent content blocks (2 – 32 px).")).addSlider((s) => s.setLimits(2, 32, 1).setValue(this.plugin.settings.blockSpacingPx).setDynamicTooltip().onChange(async (v) => {
+          new import_obsidian.Setting(containerEl).setName(paipaT("Block spacing")).setDesc(paipaT("Spacing between adjacent content blocks (2 \u2013 32 px).")).addSlider((s) => s.setLimits(2, 32, 1).setValue(this.plugin.settings.blockSpacingPx).setDynamicTooltip().onChange(async (v) => {
             this.plugin.settings.blockSpacingPx = v;
             await this.plugin.saveSettings();
           }));
@@ -5785,7 +5807,7 @@ var ExpiringSettings = class extends PluginSettingTab {
   display() {
     this.containerEl.empty();
     this.containerEl.createEl("h2", { text: paipaT("Expiring Blocks") });
-    new Setting(this.containerEl).setName(paipaT("Language")).setDesc(paipaT("Follow Obsidian's language, or choose one for this plugin.")).addDropdown((d) => d.addOption("auto", paipaT("Follow Obsidian")).addOption("en", "English").addOption("zh", "中文").setValue(["auto", "en", "zh"].includes(this.plugin.settings.language) ? this.plugin.settings.language : "auto").onChange(async (value) => {
+    new Setting(this.containerEl).setName(paipaT("Language")).setDesc(paipaT("Follow Obsidian's language, or choose one for this plugin.")).addDropdown((d) => d.addOption("auto", paipaT("Follow Obsidian")).addOption("en", "English").addOption("zh", "\u4E2D\u6587").setValue(["auto", "en", "zh"].includes(this.plugin.settings.language) ? this.plugin.settings.language : "auto").onChange(async (value) => {
       this.plugin.settings.language = value;
       paipaSetLang(value);
       await this.plugin.saveData(this.plugin.settings);
