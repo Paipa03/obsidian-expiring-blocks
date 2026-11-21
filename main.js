@@ -1,5 +1,5 @@
 /*
- * Expiring Blocks 1.1.0 - by paipa, MIT License
+ * Expiring Blocks 1.1.1 - by paipa, MIT License
  * https://github.com/Paipa03/obsidian-expiring-blocks
  *
  * Maintainer notes:
@@ -566,6 +566,17 @@ var require_toggle_engine = __commonJS({
     }
     function isToggleCloseLineText(text) {
       return NSB_TOGGLE_CLOSE_RE.test(text || "");
+    }
+    function isWholeNoteSync(tr, ue) {
+      if (!tr.docChanged) return false;
+      if (/^set(\.|$)/.test(ue)) return true;
+      if (ue) return false;
+      let count = 0, whole = false;
+      tr.changes.iterChanges((fromA, toA) => {
+        count++;
+        whole = fromA === 0 && toA === tr.startState.doc.length;
+      });
+      return count === 1 && whole;
     }
     function isToggleMarkerLineText(text) {
       return isToggleOpenLineText(text) || isToggleCloseLineText(text);
@@ -2474,6 +2485,7 @@ var require_toggle_engine = __commonJS({
           if (!fieldValue || !fieldValue.live) return tr;
           const ue = tr.annotation(import_state.Transaction.userEvent) || "";
           if (ue.indexOf("nsb") >= 0 || ue === "undo" || ue === "redo" || /^undo|^redo/.test(ue)) return tr;
+          if (isWholeNoteSync(tr, ue)) return tr;
           if (!tr.docChanged) return self.guardToggleSelection(tr, fieldValue.atomic);
           return self.guardToggleMarkerChanges(tr, ue);
         });
@@ -5576,7 +5588,15 @@ var ExpiringBlocks = class extends Plugin {
   renewTransaction(tr) {
     if (!tr.docChanged) return tr;
     const event = tr.annotation(Transaction.userEvent) || "";
-    if (event.startsWith(INTERNAL) || event === "input.nsb.toggle" || /^undo|^redo/.test(event)) return tr;
+    if (event.startsWith(INTERNAL) || event === "input.nsb.toggle" || /^undo|^redo/.test(event) || /^set(\.|$)/.test(event)) return tr;
+    if (!event) {
+      let count = 0, whole = false;
+      tr.changes.iterChanges((fromA, toA) => {
+        count++;
+        whole = fromA === 0 && toA === tr.startState.doc.length;
+      });
+      if (count === 1 && whole) return tr;
+    }
     const before = this.editingBlocks(tr.startState.doc), after = this.editingBlocks(tr.newDoc);
     if (!before.length || !after.length) return tr;
     const changes = [];
